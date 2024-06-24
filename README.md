@@ -8,58 +8,107 @@ Only the standard library if you intend not to verify the authenticity of the Pa
 
 pycryptodome otherwise (recommended)
 
-    sudo pip install pycryptodome
+   `sudo pip install pycryptodome`
 
 ## Usage
 
 Complete the **settings_example.py** file and rename it **settings.py**
 
 Calling Paybox from a Django view
-
+```python
     def paybox_call(request, order_reference):
      from Paybox import Transaction
      
      # Your order object
      order = get_object_or_404(Order, reference=order_reference)
 	
-     transaction = Transaction(
-      production = False,
-      PBX_TOTAL = order.total,	# total of the transaction, in cents (10€ == 1000) (int)
-      PBX_PORTEUR = order.email,  # customer's email address
-      PBX_TIME = order.date,	# datetime object
-      PBX_CMD = order.reference	# order_reference (str)
-     )
+     transaction = Transaction(production=False,
+                              firstname=order.firstname,
+                              lastname=order.lastname,
+                              address1=order.address,
+                              city=order.city,
+                              zipcode=order.zipcode,
+                              countrycode=order.countrycode, # 250 for France
+                              PBX_TOTAL=order.total, 	# total of the transaction, in cents (10€ == 1000) (int)
+                              PBX_PORTEUR=order.email,  # customer's email address
+                              PBX_TIME=order.date.isoformat(),	 # datetime object
+                              PBX_CMD=order.reference),  # order_reference (str),
+                              PBX_DEVISE=978,
+                              PBX_REFUSE='http://127.0.0.1:8000/polls/up2pay',
+                              PBX_REPONDRE_A='http://127.0.0.1:8000/polls/up2pay',
+                              PBX_EFFECTUE='http://127.0.0.1:8000/polls/up2pay',
+                              PBX_ANNULE='http://127.0.0.1:8000/polls/up2pay',
+                              PBX_ATTENTE='http://127.0.0.1:8000/polls/up2pay',
+                              )
 
-     form_values = transaction.post_to_paybox()
-
-     return render(request, 'payment.html', {
-      'action': form_values['action'],
-      'mandatory': form_values['mandatory'],
-      'accessory': form_values['accessory'],
-     })
-
+    form = transaction.construct_html_form()
+    return render(request, 'polls/payment.html',
+                  {'action': form['action'],
+                   'html': form['html'],
+                   })
+```
 How to organise the variables in a Django template
-
-    <form method="POST" action="{{ action }}">
-	<input type="hidden" name="PBX_SITE" value="{{ mandatory.PBX_SITE }}">
-	<input type="hidden" name="PBX_RANG" value="{{ mandatory.PBX_RANG }}">
-	<input type="hidden" name="PBX_IDENTIFIANT" value="{{ mandatory.PBX_IDENTIFIANT }}">
-	<input type="hidden" name="PBX_TOTAL" value="{{ mandatory.PBX_TOTAL }}">
-	<input type="hidden" name="PBX_DEVISE" value="{{ mandatory.PBX_DEVISE }}">
-	<input type="hidden" name="PBX_CMD" value="{{ mandatory.PBX_CMD }}">
-	<input type="hidden" name="PBX_PORTEUR" value="{{ mandatory.PBX_PORTEUR }}">
-	<input type="hidden" name="PBX_RETOUR" value="{{ mandatory.PBX_RETOUR }}">
-	<input type="hidden" name="PBX_HASH" value="{{ mandatory.PBX_HASH }}">
-	<input type="hidden" name="PBX_TIME" value="{{ mandatory.PBX_TIME }}">
-	<input type="hidden" name="PBX_HMAC" value="{{ mandatory.hmac }}">
-	{% for name, value in accessory.items %}
-		{% if value %}
-			<input type="hidden" name="{{ name }}" value="{{ value }}">
-		{% endif %}
-	{% endfor %}
-	<input type="submit" value="Proceed to payment">
+```html
+<form action="{{action}}" id="payboxform" method="POST">
+    {{html|safe}}
+    <input type="submit" value="Send payment"/>
 </form>
+```
+For using in with a dynamic form building in javascript  
+```python
+    def paybox_call(request, order_reference):
+     from Paybox import Transaction
+     
+     # Your order object
+     order = get_object_or_404(Order, reference=order_reference)
+	
+     transaction = Transaction(production=False,
+                              firstname=order.firstname,
+                              lastname=order.lastname,
+                              address1=order.address,
+                              city=order.city,
+                              zipcode=order.zipcode,
+                              countrycode=order.countrycode, # 250 for France
+                              PBX_TOTAL=order.total, 	# total of the transaction, in cents (10€ == 1000) (int)
+                              PBX_PORTEUR=order.email,  # customer's email address
+                              PBX_TIME=order.date.isoformat(),	 # datetime object
+                              PBX_CMD=order.reference),  # order_reference (str),
+                              PBX_DEVISE=978,
+                              PBX_REFUSE='http://127.0.0.1:8000/polls/up2pay',
+                              PBX_REPONDRE_A='http://127.0.0.1:8000/polls/up2pay',
+                              PBX_EFFECTUE='http://127.0.0.1:8000/polls/up2pay',
+                              PBX_ANNULE='http://127.0.0.1:8000/polls/up2pay',
+                              PBX_ATTENTE='http://127.0.0.1:8000/polls/up2pay',
+                              )
 
+    return render(request, 'polls/payment.html',
+                  {'action': transaction.get_action(),
+                   'values': transaction.get_html_elements(),
+                   })
+```
+and the corresponding template:
+```html
+<h1>Javascript rendering: </h1>
+<form action="{{action}}" id="payboxform" method="POST">
+</form>
+<button type="submit" onclick="document.getElementById('payboxform').submit()">PAYER</button>
+
+<script>
+    const formElements = {{ values|safe }};
+    const payboxForm = document.getElementById('payboxform');
+    console.log(formElements);
+    function populateForm(parentFormElement, payboxFormElements) {
+        payboxFormElements.map((e) => {
+            const _inputElement = document.createElement('input');
+            _inputElement.type = "hidden";
+            _inputElement.name = e.name;
+            _inputElement.value = e.value;
+            parentFormElement.appendChild(_inputElement)
+        })
+    }
+    populateForm(payboxForm,formElements);
+</script>
+```
 Receiving an Instant Payment Notification in a Django view
 
     def ipn(request):
@@ -116,6 +165,8 @@ To set your IPN url you have to contact customer support. Your ipn url MUST NOT 
 	PBX_RETOUR (list of variables that paybox will return with the payment confirmation)
 	PBX_HASH (How you've keyed-hashed your message. SHA512 in this app)
 	PBX_TIME (ISO 8601 Format)
+    PBX_BILLING
+    PBX_SHOPPINGCART
 	PBX_HMAC 
 
 ### How to send a valid payment call to Paybox

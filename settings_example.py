@@ -2,8 +2,8 @@
 # -*- coding: iso8859-1 -*-
 # SECRET. Please protect this file from external access
 
-SECRETKEYPROD = ""
-SECRETKEYTEST = ""
-PBX_SITE = ""
-PBX_IDENTIFIANT = ""
-PBX_RANG = "" # two digits
+PAYBOX_SECRETKEYTEST = ""
+PAYBOX_SECRETKEYPROD = ""
+PAYBOX_SITE = ""
+PAYBOX_IDENTIFIANT = ""
+PAYBOX_RANG = ""  # two digits
